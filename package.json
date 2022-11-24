@@ -1,0 +1,40 @@
+{
+  "name": "deepsource-vscode",
+  "version": "0.0.1",
+  "description": "VSCode extension for DeepSource",
+  "main": "dist/extension.js",
+  "author": "Srijan Paul <srijan.paul@deepsource.io>",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.34.0"
+  },
+  "activationEvents": [
+    "onCommand:extension.getAnalysisReport"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.getAnalysisReport",
+        "title": "DeepSource: Get analysis report"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "lint": "eslint \"src/**/*.ts\"",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.7",
+    "@types/vscode": "^1.34.0",
+    "@typescript-eslint/eslint-plugin": "^5.42.0",
+    "@typescript-eslint/parser": "^5.42.0",
+    "eslint": "^8.26.0",
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "simple-git": "^3.15.0",
+    "vscode-cache": "^0.3.0"
+  }
+}
