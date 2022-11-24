@@ -10,21 +10,6 @@ type RepoInfo = {
   repoName: string;
 };
 
-const languagesSupported = [
-  "javascript",
-  "typescript",
-  "jsx",
-  "tsx",
-  "python",
-  "go",
-  "sql",
-  "vue",
-  "rust",
-  "ruby",
-  "php",
-  "java",
-];
-
 const { workspaceFolders } = vscode.workspace;
 const workspaceDirPath = workspaceFolders?.[0].uri.path;
 
@@ -74,7 +59,8 @@ function getDiagnosticMap(
     const filePath = path.join(workspaceDirPath, occurrence.path);
     const { issue } = occurrence;
     const { endLine, beginLine, endColumn, beginColumn } = occurrence;
-    const startPos = new vscode.Position(beginLine - 1, beginColumn);
+    const beginCol = beginColumn > 0 ? beginColumn - 1 : beginColumn;
+    const startPos = new vscode.Position(beginLine - 1, beginCol);
     const endPos = new vscode.Position(endLine - 1, endColumn);
     const range = new vscode.Range(startPos, endPos);
 
@@ -99,30 +85,20 @@ async function fetchAnalysisReport(): Promise<Occurence[] | null> {
   if (!(deepSource && userName && repoName)) return null;
   const repo = await deepSource.getRepo(repoName, userName);
 
-  if (!repo) {
+  const allIssuesInRepo = await deepSource.getAllIssuesInRepo(
+    repoName,
+    userName
+  );
+
+  if (!allIssuesInRepo) {
     vscode.window.showErrorMessage(
-      "Unable to fetch repository information from DeepSource.\n" +
-        "Please ensure the access token is correct and analysis is enabled on www.deepsource.io"
+      "Unable to fetch data for repository.\n" +
+        "Please ensure analysis is activated on https://deepsource.com."
     );
     return null;
   }
 
-  const latestRunID = repo.runIds[0];
-  if (!latestRunID) {
-    vscode.window.showErrorMessage("Unable to fetch fetch analysis data.");
-    return null;
-  }
-
-  const checksOnRepo = await deepSource.getChecksByRunId(latestRunID);
-  if (!checksOnRepo) {
-    vscode.window.showErrorMessage(
-      `Unable to fetch data for run: ${latestRunID}`
-    );
-    return null;
-  }
-
-  const occurrences = checksOnRepo.map((check) => check.occurrences).flat();
-  return occurrences;
+  return allIssuesInRepo;
 }
 
 /**
@@ -136,6 +112,9 @@ async function calculateDiagnostics(
   const occurrences = await fetchAnalysisReport();
   if (!occurrences) return false;
   diagnosticsInFile = getDiagnosticMap(workspaceDirPath, occurrences);
+  vscode.window.showErrorMessage(
+    "Successfully fetched issues from deepsource.io"
+  );
   return true;
 }
 
@@ -195,7 +174,6 @@ export function activate(context: vscode.ExtensionContext) {
       diagnosticCollection.clear();
 
       if (diagnosticsInFile.has(filePath)) {
-        vscode.window.showInformationMessage(filePath);
         diagnosticCollection.set(document.uri, diagnosticsInFile.get(filePath));
       }
     })
