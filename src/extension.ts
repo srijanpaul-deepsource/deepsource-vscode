@@ -2,8 +2,9 @@ import DeepSource, { Occurence } from "deepsource-node";
 import git from "simple-git";
 import path = require("path");
 import * as vscode from "vscode";
-// @ts-ignore
+// @ts-ignore: this library does not have type defs
 import * as VSCodeCache from "vscode-cache";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 
 type RepoInfo = {
   userName: string;
@@ -35,6 +36,10 @@ async function getRepoAndUserName(repoDir: string): Promise<RepoInfo | null> {
   return null;
 }
 
+/**
+ * Prompts the user to enter their DeepSource PAT in a vscode pop-up .
+ * @returns The PAT entered by the user, if any, else `undefined`.
+ */
 function getPATFromUser(): Thenable<string | undefined> {
   return vscode.window.showInputBox({
     title: "Personal access token",
@@ -49,14 +54,32 @@ let userName: string | undefined;
 let repoName: string | undefined;
 let diagnosticsInFile: DiagnosticMap = new Map();
 
-function getDiagnosticMap(
+/**
+ * Returns a mapping from file paths to vscode diagnostics.
+ * As a side effect, it also creates the deepsource issues cache directory in the workspace root.
+ * @param workspaceDirPath current VSCode workspace root.
+ * @param occurrences List of occurrences returned by deepsource.
+ * @returns A mapping between filepaths and lists of diagnostics.
+ */
+function prepareDiagnostics(
   workspaceDirPath: string,
   occurrences: Occurence[]
 ): DiagnosticMap {
   const diagnosticMap: DiagnosticMap = new Map();
 
+  const jsonDumpDir = path.join(workspaceDirPath, ".deepsource");
+  if (!existsSync(jsonDumpDir)) {
+    mkdirSync(jsonDumpDir);
+  }
+  const jsonDumpPath = path.join(jsonDumpDir, "issues.json");
+
+  occurrences.forEach(
+    (occurrence) =>
+      (occurrence.path = path.join(workspaceDirPath, occurrence.path))
+  );
+
   for (const occurrence of occurrences) {
-    const filePath = path.join(workspaceDirPath, occurrence.path);
+    const filePath = occurrence.path;
     const { issue } = occurrence;
     const { endLine, beginLine, endColumn, beginColumn } = occurrence;
     const beginCol = beginColumn > 0 ? beginColumn - 1 : beginColumn;
@@ -67,7 +90,7 @@ function getDiagnosticMap(
     const diagnostic = new vscode.Diagnostic(
       range,
       issue.title,
-      vscode.DiagnosticSeverity.Warning
+      vscode.DiagnosticSeverity.Error
     );
 
     if (diagnosticMap.has(filePath)) {
@@ -78,12 +101,17 @@ function getDiagnosticMap(
     }
   }
 
+  writeFileSync(jsonDumpPath, JSON.stringify(occurrences));
   return diagnosticMap;
 }
 
+/**
+ * @returns All issues reported by DeepSource in the current workspace if:
+ * 1. It is a Github repository.
+ * 2. It has been activated on DeepSource.
+ */
 async function fetchAnalysisReport(): Promise<Occurence[] | null> {
   if (!(deepSource && userName && repoName)) return null;
-  const repo = await deepSource.getRepo(repoName, userName);
 
   const allIssuesInRepo = await deepSource.getAllIssuesInRepo(
     repoName,
@@ -92,7 +120,7 @@ async function fetchAnalysisReport(): Promise<Occurence[] | null> {
 
   if (!allIssuesInRepo) {
     vscode.window.showErrorMessage(
-      "Unable to fetch data for repository.\n" +
+      `Unable to fetch data for repository: ${repoName}, under account "${userName}".\n` +
         "Please ensure analysis is activated on https://deepsource.com."
     );
     return null;
@@ -111,8 +139,8 @@ async function calculateDiagnostics(
 ): Promise<boolean> {
   const occurrences = await fetchAnalysisReport();
   if (!occurrences) return false;
-  diagnosticsInFile = getDiagnosticMap(workspaceDirPath, occurrences);
-  vscode.window.showErrorMessage(
+  diagnosticsInFile = prepareDiagnostics(workspaceDirPath, occurrences);
+  vscode.window.showInformationMessage(
     "Successfully fetched issues from deepsource.io"
   );
   return true;
@@ -156,21 +184,38 @@ export function activate(context: vscode.ExtensionContext) {
           deepSource = new DeepSource(pat);
           cache.put("personal-access-token", pat);
           calculateDiagnostics(workspaceDirPath).then((success) => {
-            console.log("incorrect PAT");
-            if (!success) cache.forget("personal-access-token");
+            if (!success) {
+              cache.forget("personal-access-token");
+              vscode.window.showErrorMessage(
+                "Incorrect personal access token."
+              );
+            }
           });
         });
       }
     }
   );
 
+  context.subscriptions.push(disposable);
+
+  let auditTerminal: vscode.Terminal | undefined;
+  const disposableTui = vscode.commands.registerCommand(
+    "extension.openAuditTui",
+    () => {
+      if (auditTerminal) auditTerminal.dispose();
+      auditTerminal = vscode.window.createTerminal("DeepSource audit");
+      auditTerminal.show();
+      // auditTerminal.sendText(`python3 .py ${}`);
+    }
+  );
+
+  context.subscriptions.push(disposableTui);
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor) return;
 
       const { document } = editor;
       const filePath = document.uri.fsPath;
-      vscode.window.showInformationMessage(filePath);
       diagnosticCollection.clear();
 
       if (diagnosticsInFile.has(filePath)) {
@@ -178,6 +223,4 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
-
-  context.subscriptions.push(disposable);
 }

@@ -8,6 +8,10 @@
   "engines": {
     "vscode": "^1.34.0"
   },
+  "repository": {
+    "url": "https://github.com/srijanpaul-deepsource/deepsource-vscode",
+    "type": "git"
+  },
   "activationEvents": [
     "onCommand:extension.getAnalysisReport"
   ],
@@ -16,6 +20,10 @@
       {
         "command": "extension.getAnalysisReport",
         "title": "DeepSource: Get analysis report"
+      },
+      {
+        "command": "extension.openAuditTui",
+        "title": "DeepSource: Review audit issues"
       }
     ]
   },
