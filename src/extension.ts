@@ -203,9 +203,15 @@ export function activate(context: vscode.ExtensionContext) {
     "extension.openAuditTui",
     () => {
       if (auditTerminal) auditTerminal.dispose();
-      auditTerminal = vscode.window.createTerminal("DeepSource audit");
+      auditTerminal = vscode.window.createTerminal("DeepSource Audit");
       auditTerminal.show();
-      // auditTerminal.sendText(`python3 .py ${}`);
+      auditTerminal.sendText(
+        `python3 $AUDIT_PY_PATH ${path.join(
+          workspaceDirPath,
+          ".deepsource",
+          "issues.json"
+        )}`
+      );
     }
   );
 
