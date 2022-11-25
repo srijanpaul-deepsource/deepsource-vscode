@@ -5,6 +5,7 @@
   "main": "dist/extension.js",
   "author": "Srijan Paul <srijan.paul@deepsource.io>",
   "license": "MIT",
+  "publisher": "SrijanPaul",
   "engines": {
     "vscode": "^1.34.0"
   },
@@ -42,6 +43,7 @@
     "typescript": "^4.8.4"
   },
   "dependencies": {
+    "deepsource-node": "^0.1.3",
     "simple-git": "^3.15.0",
     "vscode-cache": "^0.3.0"
   }

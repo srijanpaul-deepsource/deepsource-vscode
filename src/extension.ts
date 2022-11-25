@@ -1,3 +1,4 @@
+// @ts-ignore
 import DeepSource, { Occurence } from "deepsource-node";
 import git from "simple-git";
 import path = require("path");
